@@ -5,11 +5,50 @@ mongoose.connect('mongodb://localhost/playground')
     .catch(err => console.error('Could not connect to MongoDB...', err));
 
 const courseSchema = new mongoose.Schema({
-    name: String,
+    name: {
+        type: String,
+        required: true,
+        minlength: 5,
+        maxlength: 255,
+        // match: /pattern/
+    },
+    category: {
+        type: String,
+        required: true,
+        enum: ['web', 'mobile', 'network'],
+        lowercase: true, // auto convert to lowercase/uppercase
+        trim: true
+    },
     author: String,
-    tags: [String],
+    tags: {
+        type: [String],
+        validate: {
+            validator: function (v) {
+                return new Promise((resolve, reject) => {
+                    // simulate async operation
+                    setTimeout(() => {
+                        const result = v && v.length > 0;
+                        if (result) {
+                            resolve(true);  // validation passes
+                        } else {
+                            reject(new Error('A course should have at least 1 tag.'));
+                        }
+                    }, 4000);
+                });
+            },
+            message: 'A course should have at least 1 tag.'
+        }
+    },
     date: { type: Date, default: Date.now },
-    isPublished: Boolean
+    isPublished: Boolean,
+    price: {
+        type: Number,
+        required: function () { return this.isPublished; },
+        min: 10,
+        max: 200,
+        get: v => Math.round(v), // auto rounding
+        set: v => Math.round(v)
+    }
 })
 
 const Course = mongoose.model('Course', courseSchema);
@@ -22,18 +61,37 @@ async function createCourse() {
     //     isPublished: true
     // });
 
+    // const course = new Course({
+    //     name: 'react course',
+    //     category: 'mobile',
+    //     author: 'Mosh',
+    //     tags: ['react', 'js', 'frontend'],
+    //     isPublished: true,
+    //     price: 20
+    // });
+
     const course = new Course({
         name: 'react course',
+        category: '-',
         author: 'Mosh',
-        tags: ['react', 'js', 'frontend'],
-        isPublished: true
+        tags: [],
+        isPublished: true,
+        price: 20
     });
 
-    const result = await course.save();
-    console.log(result);
+    try {
+        // await course.validate((err) => {
+        // }); // returns void, not bool, need add callback error as param if needed
+        const result = await course.save();
+        console.log(result);
+    } catch (ex) {
+        for (field in ex.errors) {
+            console.log(ex.errors[field].message);
+        }
+    }
 }
 
-// createCourse();
+createCourse();
 
 async function getCourses() {
     const courses = await Course.find(); // add .countDocuments() to get number of count
@@ -41,24 +99,24 @@ async function getCourses() {
 }
 
 async function getBasicFilteredCourses() {
-    const courses = await Course.find({ name: 'react course'});
+    const courses = await Course.find({ name: 'react course' });
 
     const courses2 = await Course
-    .find({ name: 'react course', isPublished: true})
-    .limit(10)
-    .sort({name: 1})//sort by name, 1 asc, -1 desc
-    .select({name: 1, tags: 1}); //to only get these 2 properties, id will be returned by default 
+        .find({ name: 'react course', isPublished: true })
+        .limit(10)
+        .sort({ name: 1 })//sort by name, 1 asc, -1 desc
+        .select({ name: 1, tags: 1 }); //to only get these 2 properties, id will be returned by default 
     console.log(courses);
 }
 
 async function getBasicFilteredByStringCourses() {
-    const courses = await Course.find({ name: 'react course'});
+    const courses = await Course.find({ name: 'react course' });
 
     const courses2 = await Course
-    .find({ name: 'react course', isPublished: true})
-    .limit(10)
-    .sort('-name') // sort by name desc
-    .select('name author'); //to only get these 2 properties, id will be returned by default 
+        .find({ name: 'react course', isPublished: true })
+        .limit(10)
+        .sort('-name') // sort by name desc
+        .select('name author'); //to only get these 2 properties, id will be returned by default 
     console.log(courses);
 }
 
@@ -71,8 +129,8 @@ async function getComparisonQueryCourses() {
     // lte (less than or equals to)
     // in
     // nin (not in)
-    
-    const courses = await Course.find({price: { $gte: 10, $lte: 20}});
+
+    const courses = await Course.find({ price: { $gte: 10, $lte: 20 } });
     // const courses = await Course.find({price: { $in: [10,15,20] }});
     console.log(courses);
 }
@@ -80,10 +138,10 @@ async function getComparisonQueryCourses() {
 async function getLogicalQueryCourses() {
     // or
     // and
-    
+
     const courses = await Course.find()
-    .or([ {author: 'Mosh'}, { isPublished: true}])
-    .and([]);
+        .or([{ author: 'Mosh' }, { isPublished: true }])
+        .and([]);
     console.log(courses);
 }
 
@@ -108,15 +166,15 @@ async function getPagedCourses() {
     const pageSize = 10;
 
     const courses = await Course.find()
-    .skip((pageNum - 1) * pageSize)
-    .limit(pageSize); // add .countDocuments() to get number of count
+        .skip((pageNum - 1) * pageSize)
+        .limit(pageSize); // add .countDocuments() to get number of count
     console.log(courses);
 }
 
 
-getCourses();
+// getCourses();
 
-async function updateCourseUpdateFirst(id){
+async function updateCourseUpdateFirst(id) {
     const result = await Course.updateOne({ _id: id }, {
         $set: {
             author: 'Mosh',
@@ -126,31 +184,31 @@ async function updateCourseUpdateFirst(id){
     console.log(result);
 }
 
-async function updateCourseQueryFirst(id){
+async function updateCourseQueryFirst(id) {
     const course = await Course.findById(id);
-    if(!course) return;
+    if (!course) return;
     course.isPublished = true;
     course.author = 'Another Author';
     const result = await course.save();
     console.log(result);
 }
 
-async function updateCourseQueryFirstReturnDOc(id){
+async function updateCourseQueryFirstReturnDOc(id) {
     const course = await Course.updateOne(id, {
         $set: {
             author: 'Mosh',
             isPublished: false
         }
-    }, {new: true}); // without this, it will return the old doc
+    }, { new: true }); // without this, it will return the old doc
     console.log(course);
 }
 
 // updateCourseQueryFirst('67569de1c7c8ccddf01eea09');
 
-async function removeCourse(id){
-    const result = await Course.deleteOne({_id: id}); // or can use deleteMany
+async function removeCourse(id) {
+    const result = await Course.deleteOne({ _id: id }); // or can use deleteMany
     // const course = Course.findByIdAndDelete(id); // to return a course obj
     console.log(result); // result obj -> num of docs deleted
 }
 
-removeCourse('67569de1c7c8ccddf01eea09');
+// removeCourse('67569de1c7c8ccddf01eea09');
