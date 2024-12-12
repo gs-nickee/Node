@@ -8,6 +8,7 @@ const logger = winston.createLogger({
         winston.format.json()
     ),
     transports: [
+        new winston.transports.Console({ colorize: true, prettyPrint: true }),
         new winston.transports.File({ filename: 'logfile.log' }),
         new winston.transports.MongoDB({
             db: 'mongodb://localhost/vidly', // MongoDB connection string
